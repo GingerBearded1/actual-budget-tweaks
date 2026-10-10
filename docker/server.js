@@ -178,6 +178,32 @@ function proxyToActual(req, res) {
 	};
 	const upstreamReq = http.request(upstreamReqOpts, (upstreamRes) => {
 		const contentType = upstreamRes.headers["content-type"] || "";
+		if (req.url.split("?")[0] === "/sw.js" && contentType.includes("javascript")) {
+			// Actual precaches index.html for offline/PWA navigation. When the sidecar is
+			// introduced on an existing origin, that cache can keep serving the original
+			// (uninjected) app shell indefinitely. Make the service worker and its app-shell
+			// revision ABT-version-aware so an update recaches index.html through this proxy.
+			const chunks = [];
+			upstreamRes.on("data", (c) => chunks.push(c));
+			upstreamRes.on("end", () => {
+				const source = Buffer.concat(chunks).toString("utf8");
+				const revisionPattern = /(\{url:["']\/?index\.html["'],revision:["'])([^"']+)(["']\})/;
+				const revised = source.replace(
+					revisionPattern,
+					(_, before, revision, after) =>
+						`${before}${revision}-abt-${ABT_VERSION}${after}`,
+				);
+				const body = `${revised}\n// ABT sidecar ${ABT_VERSION}\n`;
+				const headers = { ...upstreamRes.headers };
+				delete headers["content-length"];
+				delete headers.etag;
+				delete headers["last-modified"];
+				headers["cache-control"] = "no-cache";
+				res.writeHead(upstreamRes.statusCode, headers);
+				res.end(body);
+			});
+			return;
+		}
 		if (!contentType.includes("text/html")) {
 			const headers = { ...upstreamRes.headers };
 			res.writeHead(upstreamRes.statusCode, headers);
