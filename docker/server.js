@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const PORT = Number(process.env.PORT || 3005);
+const HOST = process.env.HOST || undefined;
 const ACTUAL_ORIGIN = process.env.ACTUAL_ORIGIN || "http://actual:5006";
 const ASSETS_DIR = process.env.ASSETS_DIR || "/assets";
 const PACKAGE_JSON_PATH = process.env.PACKAGE_JSON_PATH || "/app/package.json";
@@ -221,6 +222,8 @@ const server = http.createServer((req, res) => {
 	return proxyToActual(req, res);
 });
 
-server.listen(PORT, () => {
-	console.log(`[abt-sidecar] listening on :${PORT}, proxying ${ACTUAL_ORIGIN}`);
+server.listen(PORT, HOST, () => {
+	console.log(
+		`[abt-sidecar] listening on ${HOST || "all interfaces"}:${PORT}, proxying ${ACTUAL_ORIGIN}`,
+	);
 });
